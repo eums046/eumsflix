@@ -4,15 +4,18 @@ import { useAuth } from "../context/AuthContext";
 import { getWatchlist, removeFromWatchlist, WatchlistItem } from "../services/watchlist";
 import { Bookmark, Play, Trash2 } from "lucide-react";
 
+// Module-level cache so revisiting is instant
+let myListCache: WatchlistItem[] | null = null;
+
 export function MyList() {
   const { user } = useAuth();
-  const [list, setList] = useState<WatchlistItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [list, setList] = useState<WatchlistItem[]>(myListCache ?? []);
+  const [loading, setLoading] = useState(!myListCache);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
     getWatchlist(user.uid)
-      .then(setList)
+      .then((data) => { setList(data); myListCache = data; })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [user]);

@@ -13,15 +13,24 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { getContinueWatching, WatchHistoryItem } from "../services/watchHistory";
 
+// Module-level cache — persists across navigations
+let homeCache: {
+  featured: Movie | null;
+  newReleases: Movie[];
+  mostWatched: Movie[];
+  topMovies: Movie[];
+  topSeries: Movie[];
+} | null = null;
+
 export function Home() {
   const { user } = useAuth();
-  const [featured, setFeatured] = useState<Movie | null>(null);
-  const [newReleases, setNewReleases] = useState<Movie[]>([]);
-  const [mostWatched, setMostWatched] = useState<Movie[]>([]);
-  const [topMovies, setTopMovies] = useState<Movie[]>([]);
-  const [topSeries, setTopSeries] = useState<Movie[]>([]);
+  const [featured, setFeatured] = useState<Movie | null>(homeCache?.featured ?? null);
+  const [newReleases, setNewReleases] = useState<Movie[]>(homeCache?.newReleases ?? []);
+  const [mostWatched, setMostWatched] = useState<Movie[]>(homeCache?.mostWatched ?? []);
+  const [topMovies, setTopMovies] = useState<Movie[]>(homeCache?.topMovies ?? []);
+  const [topSeries, setTopSeries] = useState<Movie[]>(homeCache?.topSeries ?? []);
   const [continueWatching, setContinueWatching] = useState<WatchHistoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!homeCache);
 
   useEffect(() => {
     let mounted = true;
@@ -42,6 +51,7 @@ export function Home() {
           setTopMovies(tom);
           setTopSeries(tos);
           setContinueWatching(cw);
+          homeCache = { featured: f, newReleases: n, mostWatched: m, topMovies: tom, topSeries: tos };
         }
       } catch (e) {
         console.error("Failed to fetch home movies:", e);

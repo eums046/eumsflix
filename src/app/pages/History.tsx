@@ -4,10 +4,13 @@ import { useAuth } from "../context/AuthContext";
 import { getWatchHistory, WatchHistoryItem } from "../services/watchHistory";
 import { Clock, Play } from "lucide-react";
 
+// Module-level cache so revisiting is instant
+let historyCache: WatchHistoryItem[] | null = null;
+
 export function History() {
   const { user } = useAuth();
-  const [history, setHistory] = useState<WatchHistoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [history, setHistory] = useState<WatchHistoryItem[]>(historyCache ?? []);
+  const [loading, setLoading] = useState(!historyCache);
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -18,6 +21,7 @@ export function History() {
       try {
         const items = await getWatchHistory(user.uid, 50);
         setHistory(items);
+        historyCache = items;
       } catch (e) {
         console.error("Failed to fetch watch history", e);
       } finally {
