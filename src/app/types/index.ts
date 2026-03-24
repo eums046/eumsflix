@@ -11,5 +11,6 @@ export interface Movie {
   videoUrl: string;
   cast: string[];
   director: string;
-  tmdbId: number; 
+  tmdbId: number;
+  media_type?: "movie" | "tv";
 }

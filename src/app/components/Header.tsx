@@ -1,10 +1,20 @@
-import { Link, useLocation } from "react-router";
-import { Search, Bell, User } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router";
+import { Search as SearchIcon, Bell, User } from "lucide-react";
 import { useState } from "react";
 
 export function Header() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [isScrolled, setIsScrolled] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
 
   useState(() => {
     const handleScroll = () => {
@@ -55,9 +65,26 @@ export function Header() {
           </div>
 
           <div className="flex items-center gap-4">
-            <button className="p-2 text-gray-400 hover:text-white transition-colors">
-              <Search className="w-5 h-5" />
-            </button>
+            <form onSubmit={handleSearch} className="flex items-center">
+              {isSearchOpen && (
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Titles, people, genres"
+                  className="bg-black/80 border border-white/50 text-white px-3 py-1 mr-2 text-sm focus:outline-none focus:border-white transition-all w-48 md:w-64"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onBlur={() => !searchQuery && setIsSearchOpen(false)}
+                />
+              )}
+              <button
+                type="button"
+                className="p-2 text-gray-400 hover:text-white transition-colors"
+                onClick={() => setIsSearchOpen(!isSearchOpen)}
+              >
+                <SearchIcon className="w-5 h-5" />
+              </button>
+            </form>
             <button className="p-2 text-gray-400 hover:text-white transition-colors">
               <Bell className="w-5 h-5" />
             </button>

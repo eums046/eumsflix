@@ -3,39 +3,39 @@ import { Link } from "react-router";
 import { MovieRow } from "../components/MovieRow";
 import {
   getFeaturedMovie,
-  getTrendingMovies,
   getNewReleases,
-  getPopularMovies,
-  getMostWatchedMovies
+  getMostWatchedMovies,
+  getTop10MoviesToday,
+  getTop10SeriesToday
 } from "../services/tmdb";
 import { Movie } from "../types";
 import { useState, useEffect } from "react";
 
 export function Home() {
   const [featured, setFeatured] = useState<Movie | null>(null);
-  const [trending, setTrending] = useState<Movie[]>([]);
   const [newReleases, setNewReleases] = useState<Movie[]>([]);
-  const [popular, setPopular] = useState<Movie[]>([]);
   const [mostWatched, setMostWatched] = useState<Movie[]>([]);
+  const [topMovies, setTopMovies] = useState<Movie[]>([]);
+  const [topSeries, setTopSeries] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
     const fetchAll = async () => {
       try {
-        const [f, t, n, p, m] = await Promise.all([
+        const [f, n, m, tom, tos] = await Promise.all([
           getFeaturedMovie(),
-          getTrendingMovies(),
           getNewReleases(),
-          getPopularMovies(),
-          getMostWatchedMovies()
+          getMostWatchedMovies(),
+          getTop10MoviesToday(),
+          getTop10SeriesToday()
         ]);
         if (mounted) {
           setFeatured(f);
-          setTrending(t);
           setNewReleases(n);
-          setPopular(p);
           setMostWatched(m);
+          setTopMovies(tom);
+          setTopSeries(tos);
         }
       } catch (e) {
         console.error("Failed to fetch home movies:", e);
@@ -109,11 +109,10 @@ export function Home() {
 
       {/* Movie Rows */}
       <div className="relative -mt-32 pb-20">
-        <MovieRow title="Trending Now" movies={trending} />
+        <MovieRow title="Top 10 Movies Today" movies={topMovies} />
+        <MovieRow title="Top 10 Series Today" movies={topSeries} />
         <MovieRow title="Most Watched Movies" movies={mostWatched} />
         <MovieRow title="New Releases" movies={newReleases} />
-        <MovieRow title="Popular on EumsFlix" movies={popular} />
-        <MovieRow title="Action & Adventure" movies={trending} />
       </div>
     </div>
   );

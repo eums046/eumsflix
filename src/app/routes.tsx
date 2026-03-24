@@ -2,6 +2,7 @@ import { createBrowserRouter } from "react-router";
 import { Home } from "./pages/Home";
 import { Browse } from "./pages/Browse";
 import { MovieDetail } from "./pages/MovieDetail";
+import { Search } from "./pages/Search";
 import { Header } from "./components/Header";
 
 function Layout({ children }: { children: React.ReactNode }) {
@@ -27,6 +28,14 @@ export const router = createBrowserRouter([
     element: (
       <Layout>
         <Browse />
+      </Layout>
+    )
+  },
+  {
+    path: "/search",
+    element: (
+      <Layout>
+        <Search />
       </Layout>
     )
   },

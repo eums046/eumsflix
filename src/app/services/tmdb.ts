@@ -16,23 +16,29 @@ const fetchFromTMDB = async (endpoint: string, params: Record<string, string> = 
   return response.json();
 };
 
-const mapTMDBMovie = async (tmdbMovie: any, fullDetails = false): Promise<Movie> => {
+const mapTMDBMovie = async (tmdbMovie: any, fullDetails = false, forceType?: "movie"|"tv"): Promise<Movie> => {
   let cast: string[] = [];
   let director = "Unknown";
   let duration = "2h 00m"; // Default fallback
   let rating = "PG-13"; // Default fallback
   let genres: string[] = [];
+  
+  const type = forceType || tmdbMovie.media_type || (tmdbMovie.name ? "tv" : "movie");
 
   if (fullDetails) {
     try {
-      // Fetch additional details if requested
-      const details = await fetchFromTMDB(`/movie/${tmdbMovie.id}`);
-      const credits = await fetchFromTMDB(`/movie/${tmdbMovie.id}/credits`);
-      const releaseDates = await fetchFromTMDB(`/movie/${tmdbMovie.id}/release_dates`);
+      const detailsEndpoint = type === "tv" ? `/tv/${tmdbMovie.id}` : `/movie/${tmdbMovie.id}`;
+      const creditsEndpoint = type === "tv" ? `/tv/${tmdbMovie.id}/credits` : `/movie/${tmdbMovie.id}/credits`;
+      
+      const details = await fetchFromTMDB(detailsEndpoint);
+      const credits = await fetchFromTMDB(creditsEndpoint);
 
-      if (details.runtime) {
+      if (type === "movie" && details.runtime) {
         duration = `${Math.floor(details.runtime / 60)}h ${details.runtime % 60}m`;
+      } else if (type === "tv" && details.episode_run_time?.length > 0) {
+        duration = `${details.episode_run_time[0]}m per ep`;
       }
+
       if (details.genres) {
         genres = details.genres.map((g: any) => g.name);
       }
@@ -40,77 +46,102 @@ const mapTMDBMovie = async (tmdbMovie: any, fullDetails = false): Promise<Movie>
         cast = credits.cast.slice(0, 4).map((c: any) => c.name);
       }
       if (credits.crew) {
-        const d = credits.crew.find((c: any) => c.job === "Director");
+        const d = credits.crew.find((c: any) => c.job === "Director" || c.job === "Executive Producer");
         if (d) director = d.name;
       }
       
-      const usRelease = releaseDates.results?.find((r: any) => r.iso_3166_1 === "US");
-      if (usRelease && usRelease.release_dates.length > 0) {
-        const cert = usRelease.release_dates[0].certification;
-        if (cert) rating = cert;
+      if (type === "movie") {
+        const releaseDates = await fetchFromTMDB(`/movie/${tmdbMovie.id}/release_dates`);
+        const usRelease = releaseDates.results?.find((r: any) => r.iso_3166_1 === "US");
+        if (usRelease && usRelease.release_dates.length > 0) {
+          const cert = usRelease.release_dates[0].certification;
+          if (cert) rating = cert;
+        }
+      } else {
+        const contentRatings = await fetchFromTMDB(`/tv/${tmdbMovie.id}/content_ratings`);
+        const usRating = contentRatings.results?.find((r: any) => r.iso_3166_1 === "US");
+        if (usRating) rating = usRating.rating;
+        else rating = "TV-14";
       }
     } catch (e) {
       console.warn(`Failed to fetch full details for ${tmdbMovie.id}`, e);
     }
   } else {
-    // Basic mapping without extra network requests
-    genres = tmdbMovie.genre_ids ? ["Movie"] : []; // In a real app we'd map genre IDs
+    genres = tmdbMovie.genre_ids ? [type === "tv" ? "TV Show" : "Movie"] : [];
   }
 
   return {
-    id: tmdbMovie.id, // We use tmdbId as the primary ID now
+    id: tmdbMovie.id,
     tmdbId: tmdbMovie.id,
+    media_type: type as any,
     title: tmdbMovie.title || tmdbMovie.name || "Unknown Title",
     description: tmdbMovie.overview || "No description available.",
-    year: tmdbMovie.release_date ? parseInt(tmdbMovie.release_date.substring(0, 4)) : new Date().getFullYear(),
+    year: (tmdbMovie.release_date || tmdbMovie.first_air_date) ? parseInt((tmdbMovie.release_date || tmdbMovie.first_air_date).substring(0, 4)) : new Date().getFullYear(),
     rating: rating,
     duration: duration,
     genre: genres,
     poster: tmdbMovie.poster_path ? `${IMAGE_BASE_URL}${tmdbMovie.poster_path}` : "https://via.placeholder.com/500x750",
     backdrop: tmdbMovie.backdrop_path ? `${IMAGE_BASE_URL}${tmdbMovie.backdrop_path}` : "https://via.placeholder.com/1200x675",
-    videoUrl: "", // No longer needed since Vidking handles this
+    videoUrl: "",
     cast: cast,
     director: director,
   };
 };
 
+export const searchMoviesAndSeries = async (query: string): Promise<Movie[]> => {
+  if (!query) return [];
+  const data = await fetchFromTMDB("/search/multi", { query, include_adult: "false" });
+  const mediaItems = data.results.filter((item: any) => item.media_type === "movie" || item.media_type === "tv");
+  return Promise.all(mediaItems.slice(0, 18).map((m: any) => mapTMDBMovie(m, false)));
+};
+
+export const getTop10MoviesToday = async (): Promise<Movie[]> => {
+  const data = await fetchFromTMDB("/trending/movie/day");
+  return Promise.all(data.results.slice(0, 10).map((m: any) => mapTMDBMovie(m, false, "movie")));
+};
+
+export const getTop10SeriesToday = async (): Promise<Movie[]> => {
+  const data = await fetchFromTMDB("/trending/tv/day");
+  return Promise.all(data.results.slice(0, 10).map((m: any) => mapTMDBMovie(m, false, "tv")));
+};
+
+// Existing Endpoints
 export const getTrendingMovies = async (): Promise<Movie[]> => {
   const data = await fetchFromTMDB("/trending/movie/day");
-  return Promise.all(data.results.slice(0, 10).map((m: any) => mapTMDBMovie(m, false)));
+  return Promise.all(data.results.slice(0, 10).map((m: any) => mapTMDBMovie(m, false, "movie")));
 };
 
 export const getPopularMovies = async (): Promise<Movie[]> => {
   const data = await fetchFromTMDB("/movie/popular");
-  return Promise.all(data.results.slice(0, 10).map((m: any) => mapTMDBMovie(m, false)));
+  return Promise.all(data.results.slice(0, 10).map((m: any) => mapTMDBMovie(m, false, "movie")));
 };
 
 export const getNewReleases = async (): Promise<Movie[]> => {
   const data = await fetchFromTMDB("/movie/now_playing");
-  return Promise.all(data.results.slice(0, 10).map((m: any) => mapTMDBMovie(m, false)));
+  return Promise.all(data.results.slice(0, 10).map((m: any) => mapTMDBMovie(m, false, "movie")));
 };
 
 export const getMostWatchedMovies = async (): Promise<Movie[]> => {
   const data = await fetchFromTMDB("/movie/top_rated");
-  return Promise.all(data.results.slice(0, 10).map((m: any) => mapTMDBMovie(m, false)));
+  return Promise.all(data.results.slice(0, 10).map((m: any) => mapTMDBMovie(m, false, "movie")));
 };
 
 export const getFeaturedMovie = async (): Promise<Movie> => {
   const data = await fetchFromTMDB("/trending/movie/day");
   if (data.results && data.results.length > 0) {
-    // Get full details for the featured movie to display correctly on the hero
-    return mapTMDBMovie(data.results[0], true);
+    return mapTMDBMovie(data.results[0], true, "movie");
   }
   throw new Error("No featured movies found.");
 };
 
-export const getMovieDetails = async (id: number): Promise<Movie> => {
-  const data = await fetchFromTMDB(`/movie/${id}`);
-  return mapTMDBMovie(data, true);
+export const getMovieDetails = async (id: number, type: "movie" | "tv" = "movie"): Promise<Movie> => {
+  const data = await fetchFromTMDB(`/${type}/${id}`);
+  return mapTMDBMovie(data, true, type);
 };
 
-export const getSimilarMovies = async (id: number): Promise<Movie[]> => {
-  const data = await fetchFromTMDB(`/movie/${id}/similar`);
-  return Promise.all(data.results.slice(0, 6).map((m: any) => mapTMDBMovie(m, false)));
+export const getSimilarMovies = async (id: number, type: "movie" | "tv" = "movie"): Promise<Movie[]> => {
+  const data = await fetchFromTMDB(`/${type}/${id}/similar`);
+  return Promise.all(data.results.slice(0, 6).map((m: any) => mapTMDBMovie(m, false, type)));
 };
 
 export const getGenres = async (): Promise<{id: number, name: string}[]> => {
@@ -119,7 +150,6 @@ export const getGenres = async (): Promise<{id: number, name: string}[]> => {
 }
 
 export const getMoviesByGenreId = async (genreId: string): Promise<Movie[]> => {
-    // TMDB expects comma separated genre IDs for with_genres
     const data = await fetchFromTMDB("/discover/movie", { with_genres: genreId });
-    return Promise.all(data.results.slice(0, 20).map((m: any) => mapTMDBMovie(m, false)));
+    return Promise.all(data.results.slice(0, 20).map((m: any) => mapTMDBMovie(m, false, "movie")));
 }
