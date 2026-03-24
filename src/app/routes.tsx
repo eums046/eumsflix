@@ -1,0 +1,54 @@
+import { createBrowserRouter } from "react-router";
+import { Home } from "./pages/Home";
+import { Browse } from "./pages/Browse";
+import { MovieDetail } from "./pages/MovieDetail";
+import { Header } from "./components/Header";
+
+function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <Header />
+      {children}
+    </>
+  );
+}
+
+export const router = createBrowserRouter([
+  {
+    path: "/",
+    element: (
+      <Layout>
+        <Home />
+      </Layout>
+    )
+  },
+  {
+    path: "/browse",
+    element: (
+      <Layout>
+        <Browse />
+      </Layout>
+    )
+  },
+  {
+    path: "/movie/:id",
+    element: (
+      <Layout>
+        <MovieDetail />
+      </Layout>
+    )
+  },
+  {
+    path: "*",
+    element: (
+      <Layout>
+        <div className="min-h-screen bg-black flex items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-6xl font-black text-white mb-4">404</h1>
+            <p className="text-gray-400 text-xl">Page not found</p>
+          </div>
+        </div>
+      </Layout>
+    )
+  }
+]);
