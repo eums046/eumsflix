@@ -3,6 +3,9 @@ import { Home } from "./pages/Home";
 import { Browse } from "./pages/Browse";
 import { MovieDetail } from "./pages/MovieDetail";
 import { Search } from "./pages/Search";
+import { Login } from "./pages/Login";
+import { SignUp } from "./pages/SignUp";
+import { History } from "./pages/History";
 import { Header } from "./components/Header";
 
 function Layout({ children }: { children: React.ReactNode }) {
@@ -36,6 +39,22 @@ export const router = createBrowserRouter([
     element: (
       <Layout>
         <Search />
+      </Layout>
+    )
+  },
+  {
+    path: "/login",
+    element: <Login />
+  },
+  {
+    path: "/signup",
+    element: <SignUp />
+  },
+  {
+    path: "/history",
+    element: (
+      <Layout>
+        <History />
       </Layout>
     )
   },

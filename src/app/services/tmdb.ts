@@ -169,6 +169,17 @@ export const getSeasonDetails = async (seriesId: number, seasonNumber: number) =
   }));
 };
 
+export const getMovieReviews = async (id: number, type: "movie" | "tv" = "movie") => {
+  const data = await fetchFromTMDB(`/${type}/${id}/reviews`);
+  return data.results.slice(0, 5).map((r: any) => ({
+    id: r.id,
+    author: r.author,
+    content: r.content,
+    rating: r.author_details?.rating || null,
+    created_at: r.created_at
+  }));
+};
+
 export const getGenres = async (): Promise<{id: number, name: string}[]> => {
     const data = await fetchFromTMDB("/genre/movie/list");
     return data.genres;

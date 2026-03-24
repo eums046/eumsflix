@@ -2,17 +2,21 @@ import { useParams, useNavigate } from "react-router";
 import { Play, Plus, ThumbsUp, ChevronLeft } from "lucide-react";
 import { VidkingPlayer } from "../components/VidkingPlayer";
 import { MovieCard } from "../components/MovieCard";
-import { getMovieDetails, getSimilarMovies, getSeasonDetails } from "../services/tmdb";
+import { getMovieDetails, getSimilarMovies, getSeasonDetails, getMovieReviews } from "../services/tmdb";
 import { useState, useEffect } from "react";
-import { Movie, Episode } from "../types";
+import { Movie, Episode, Review } from "../types";
+import { useAuth } from "../context/AuthContext";
+import { addToWatchHistory } from "../services/watchHistory";
 
 export function MovieDetail() {
   const { id, type } = useParams();
   const mediaType = (type === "tv" ? "tv" : "movie") as "movie" | "tv";
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [showPlayer, setShowPlayer] = useState(false);
   const [movie, setMovie] = useState<Movie | null>(null);
   const [similarMovies, setSimilarMovies] = useState<Movie[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
@@ -56,13 +60,15 @@ export function MovieDetail() {
       setLoading(true);
       setShowPlayer(false);
       try {
-        const [movieData, similarData] = await Promise.all([
+        const [movieData, similarData, reviewsData] = await Promise.all([
           getMovieDetails(Number(id), mediaType),
-          getSimilarMovies(Number(id), mediaType)
+          getSimilarMovies(Number(id), mediaType),
+          getMovieReviews(Number(id), mediaType)
         ]);
         if (mounted) {
           setMovie(movieData);
           setSimilarMovies(similarData);
+          setReviews(reviewsData);
         }
       } catch (e) {
         console.error("Failed to load movie details", e);
@@ -191,6 +197,17 @@ export function MovieDetail() {
                       }
                       setShowPlayer(true);
                       window.scrollTo({ top: 0, behavior: "smooth" });
+                      if (user) {
+                        addToWatchHistory(user.uid, {
+                          id: movie.tmdbId,
+                          title: movie.title,
+                          poster: movie.poster,
+                          backdrop: movie.backdrop,
+                          media_type: mediaType,
+                          season: mediaType === "tv" && movie.seasons?.[0] ? movie.seasons[0].season_number : undefined,
+                          episode: mediaType === "tv" ? 1 : undefined,
+                        }).catch(console.error);
+                      }
                     }}
                     className="flex items-center gap-2 bg-white text-black px-8 py-3 rounded font-semibold text-lg hover:bg-gray-200 transition-colors"
                   >
@@ -267,6 +284,17 @@ export function MovieDetail() {
                       setPlayingEpisode(ep.episode_number);
                       setShowPlayer(true);
                       window.scrollTo({ top: 0, behavior: "smooth" });
+                      if (user) {
+                        addToWatchHistory(user.uid, {
+                          id: movie.tmdbId,
+                          title: movie.title,
+                          poster: movie.poster,
+                          backdrop: movie.backdrop,
+                          media_type: "tv",
+                          season: selectedSeason ?? undefined,
+                          episode: ep.episode_number,
+                        }).catch(console.error);
+                      }
                     }}
                     className={`flex gap-4 p-4 rounded cursor-pointer transition-colors border ${playingSeason === selectedSeason && playingEpisode === ep.episode_number ? 'bg-gray-800 border-gray-500' : 'bg-gray-900/50 hover:bg-gray-800 border-gray-800'}`}
                   >
@@ -292,6 +320,39 @@ export function MovieDetail() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Reviews */}
+        {reviews.length > 0 && (
+          <div className="mt-16">
+            <h2 className="text-2xl font-semibold text-white mb-6">Top Reviews</h2>
+            <div className="grid gap-6">
+              {reviews.map(review => (
+                <div key={review.id} className="bg-gray-900/50 p-6 rounded-lg border border-gray-800">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center text-xl font-bold text-white uppercase">
+                      {review.author[0]}
+                    </div>
+                    <div>
+                      <h3 className="text-white font-medium">{review.author}</h3>
+                      <div className="flex items-center gap-2 text-sm mt-1">
+                        {review.rating ? (
+                          <span className="text-green-500 font-semibold">★ {review.rating}/10</span>
+                        ) : (
+                          <span className="text-gray-500 text-xs tracking-wider uppercase">No Rating</span>
+                        )}
+                        <span className="text-gray-600">•</span>
+                        <span className="text-gray-400">{new Date(review.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-gray-300 leading-relaxed text-sm md:text-base line-clamp-4 hover:line-clamp-none transition-all cursor-pointer">
+                    {review.content}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

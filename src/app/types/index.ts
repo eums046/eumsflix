@@ -31,3 +31,11 @@ export interface Episode {
   still_path: string | null;
   air_date: string;
 }
+
+export interface Review {
+  id: string;
+  author: string;
+  content: string;
+  rating: number | null;
+  created_at: string;
+}
