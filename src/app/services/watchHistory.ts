@@ -48,9 +48,13 @@ export const getWatchHistory = async (
   userId: string,
   maxItems = 20
 ): Promise<WatchHistoryItem[]> => {
-  const q = query(getHistoryRef(userId), orderBy("watchedAt", "desc"), limit(maxItems));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => doc.data() as WatchHistoryItem);
+  try {
+    const q = query(getHistoryRef(userId), orderBy("watchedAt", "desc"), limit(maxItems));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc) => doc.data() as WatchHistoryItem);
+  } catch {
+    return [];
+  }
 };
 
 export const getContinueWatching = async (

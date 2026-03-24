@@ -8,17 +8,18 @@ import { Bookmark, Play, Trash2 } from "lucide-react";
 let myListCache: WatchlistItem[] | null = null;
 
 export function MyList() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [list, setList] = useState<WatchlistItem[]>(myListCache ?? []);
   const [loading, setLoading] = useState(!myListCache);
 
   useEffect(() => {
+    if (authLoading) return; // wait for auth to initialize
     if (!user) { setLoading(false); return; }
     getWatchlist(user.uid)
       .then((data) => { setList(data); myListCache = data; })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [user]);
+  }, [user, authLoading]);
 
   const handleRemove = async (item: WatchlistItem) => {
     if (!user) return;
@@ -26,7 +27,7 @@ export function MyList() {
     setList((prev) => prev.filter((i) => i.id !== item.id || i.media_type !== item.media_type));
   };
 
-  if (!user) {
+  if (!user && !authLoading) {
     return (
       <div className="min-h-screen bg-black pt-24 flex items-center justify-center">
         <div className="text-center">

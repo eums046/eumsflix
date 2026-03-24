@@ -8,11 +8,12 @@ import { Clock, Play } from "lucide-react";
 let historyCache: WatchHistoryItem[] | null = null;
 
 export function History() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [history, setHistory] = useState<WatchHistoryItem[]>(historyCache ?? []);
   const [loading, setLoading] = useState(!historyCache);
 
   useEffect(() => {
+    if (authLoading) return; // wait for auth to initialize
     const fetchHistory = async () => {
       if (!user) {
         setLoading(false);
@@ -29,9 +30,9 @@ export function History() {
       }
     };
     fetchHistory();
-  }, [user]);
+  }, [user, authLoading]);
 
-  if (!user) {
+  if (!user && !authLoading) {
     return (
       <div className="min-h-screen bg-black pt-24 flex items-center justify-center">
         <div className="text-center">

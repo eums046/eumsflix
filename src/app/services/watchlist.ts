@@ -48,15 +48,23 @@ export const isInWatchlist = async (
   mediaType: string,
   mediaId: number
 ): Promise<boolean> => {
-  const docId = `${mediaType}_${mediaId}`;
-  const snap = await getDoc(doc(getListRef(userId), docId));
-  return snap.exists();
+  try {
+    const docId = `${mediaType}_${mediaId}`;
+    const snap = await getDoc(doc(getListRef(userId), docId));
+    return snap.exists();
+  } catch {
+    return false;
+  }
 };
 
 export const getWatchlist = async (
   userId: string
 ): Promise<WatchlistItem[]> => {
-  const q = query(getListRef(userId), orderBy("addedAt", "desc"));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => d.data() as WatchlistItem);
+  try {
+    const q = query(getListRef(userId), orderBy("addedAt", "desc"));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((d) => d.data() as WatchlistItem);
+  } catch {
+    return [];
+  }
 };
