@@ -2,17 +2,52 @@ import { useParams, useNavigate } from "react-router";
 import { Play, Plus, ThumbsUp, ChevronLeft } from "lucide-react";
 import { VidkingPlayer } from "../components/VidkingPlayer";
 import { MovieCard } from "../components/MovieCard";
-import { getMovieDetails, getSimilarMovies } from "../services/tmdb";
+import { getMovieDetails, getSimilarMovies, getSeasonDetails } from "../services/tmdb";
 import { useState, useEffect } from "react";
-import { Movie } from "../types";
+import { Movie, Episode } from "../types";
 
 export function MovieDetail() {
-  const { id } = useParams();
+  const { id, type } = useParams();
+  const mediaType = (type === "tv" ? "tv" : "movie") as "movie" | "tv";
   const navigate = useNavigate();
   const [showPlayer, setShowPlayer] = useState(false);
   const [movie, setMovie] = useState<Movie | null>(null);
   const [similarMovies, setSimilarMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
+  const [episodes, setEpisodes] = useState<Episode[]>([]);
+  const [loadingEpisodes, setLoadingEpisodes] = useState(false);
+  
+  const [playingSeason, setPlayingSeason] = useState<number | null>(null);
+  const [playingEpisode, setPlayingEpisode] = useState<number | null>(null);
+
+  const computeHasNextEpisode = (s: number, e: number) => {
+    if (!movie?.seasons) return false;
+    const season = movie.seasons.find(sz => sz.season_number === s);
+    if (!season) return false;
+    if (e < season.episode_count) return true;
+    const nextSeason = movie.seasons.find(sz => sz.season_number === s + 1);
+    return !!(nextSeason && nextSeason.episode_count > 0);
+  };
+
+  const handleNextEpisode = (s: number, e: number) => {
+    if (!movie?.seasons) return;
+    const season = movie.seasons.find(sz => sz.season_number === s);
+    if (!season) return;
+    
+    if (e < season.episode_count) {
+      setPlayingEpisode(e + 1);
+      setSelectedSeason(s);
+    } else {
+      const nextSeason = movie.seasons.find(sz => sz.season_number === s + 1);
+      if (nextSeason && nextSeason.episode_count > 0) {
+        setPlayingSeason(s + 1);
+        setPlayingEpisode(1);
+        setSelectedSeason(s + 1);
+      }
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -22,8 +57,8 @@ export function MovieDetail() {
       setShowPlayer(false);
       try {
         const [movieData, similarData] = await Promise.all([
-          getMovieDetails(Number(id)),
-          getSimilarMovies(Number(id))
+          getMovieDetails(Number(id), mediaType),
+          getSimilarMovies(Number(id), mediaType)
         ]);
         if (mounted) {
           setMovie(movieData);
@@ -37,7 +72,7 @@ export function MovieDetail() {
     };
     fetchMovie();
     return () => { mounted = false; };
-  }, [id]);
+  }, [id, mediaType]);
 
   useEffect(() => {
     if (movie) {
@@ -47,6 +82,29 @@ export function MovieDetail() {
       document.title = "eumsflix";
     };
   }, [movie]);
+
+  useEffect(() => {
+    if (movie?.seasons && movie.seasons.length > 0) {
+      setSelectedSeason(movie.seasons[0].season_number);
+    }
+  }, [movie]);
+
+  useEffect(() => {
+    if (movie?.tmdbId && selectedSeason !== null) {
+      let mounted = true;
+      setLoadingEpisodes(true);
+      getSeasonDetails(movie.tmdbId, selectedSeason).then(eps => {
+        if (mounted) {
+          setEpisodes(eps);
+          setLoadingEpisodes(false);
+        }
+      }).catch(e => {
+        console.error(e);
+        if (mounted) setLoadingEpisodes(false);
+      });
+      return () => { mounted = false; };
+    }
+  }, [movie?.tmdbId, selectedSeason]);
 
   if (loading) {
     return (
@@ -80,7 +138,11 @@ export function MovieDetail() {
           <VidkingPlayer
             tmdbId={movie.tmdbId}
             title={movie.title}
-            type="movie"
+            type={mediaType}
+            season={playingSeason ?? undefined}
+            episode={playingEpisode ?? undefined}
+            hasNextEpisode={!!playingSeason && !!playingEpisode && computeHasNextEpisode(playingSeason, playingEpisode)}
+            onNextEpisode={() => handleNextEpisode(playingSeason!, playingEpisode!)}
           />
         ) : (
           <div className="relative h-[90vh]">
@@ -121,7 +183,15 @@ export function MovieDetail() {
                 </div>
                 <div className="flex items-center gap-4">
                   <button
-                    onClick={() => setShowPlayer(true)}
+                    onClick={() => {
+                      if (mediaType === "tv" && movie.seasons && movie.seasons.length > 0) {
+                        setPlayingSeason(movie.seasons[0].season_number);
+                        setPlayingEpisode(1);
+                        setSelectedSeason(movie.seasons[0].season_number);
+                      }
+                      setShowPlayer(true);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
                     className="flex items-center gap-2 bg-white text-black px-8 py-3 rounded font-semibold text-lg hover:bg-gray-200 transition-colors"
                   >
                     <Play className="w-6 h-6" fill="currentColor" />
@@ -164,6 +234,66 @@ export function MovieDetail() {
             </div>
           </div>
         </div>
+
+        {/* Seasons and Episodes (If TV Show) */}
+        {movie.seasons && movie.seasons.length > 0 && (
+          <div className="mt-16">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-semibold text-white">Episodes</h2>
+              <select
+                className="bg-gray-800 text-white border border-gray-600 rounded px-4 py-2 outline-none focus:border-white transition-colors"
+                value={selectedSeason || ""}
+                onChange={(e) => setSelectedSeason(Number(e.target.value))}
+              >
+                {movie.seasons.map(season => (
+                  <option key={season.id} value={season.season_number}>
+                    {season.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            {loadingEpisodes ? (
+              <div className="flex justify-center py-12">
+                <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {episodes.map(ep => (
+                  <div 
+                    key={ep.id} 
+                    onClick={() => {
+                      setPlayingSeason(selectedSeason);
+                      setPlayingEpisode(ep.episode_number);
+                      setShowPlayer(true);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className={`flex gap-4 p-4 rounded cursor-pointer transition-colors border ${playingSeason === selectedSeason && playingEpisode === ep.episode_number ? 'bg-gray-800 border-gray-500' : 'bg-gray-900/50 hover:bg-gray-800 border-gray-800'}`}
+                  >
+                    <div className="w-40 aspect-video flex-shrink-0 bg-gray-800 rounded overflow-hidden relative group">
+                      {ep.still_path ? (
+                        <img src={ep.still_path} alt={ep.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      ) : (
+                        <div className="flex items-center justify-center w-full h-full text-gray-500 text-sm">No Image</div>
+                      )}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Play className="w-8 h-8 text-white" fill="currentColor" />
+                      </div>
+                    </div>
+                    <div className="flex flex-col justify-center">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xl text-white font-semibold">{ep.episode_number}.</span>
+                        <h3 className="text-lg text-white font-medium">{ep.name}</h3>
+                      </div>
+                      <p className="text-sm text-gray-400 mb-2">{ep.air_date ? new Date(ep.air_date).getFullYear() : "Unknown Year"}</p>
+                      <p className="text-gray-300 text-sm line-clamp-2">{ep.overview || "No overview available."}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Similar Movies */}
         {similarMovies.length > 0 && (

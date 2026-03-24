@@ -6,9 +6,10 @@ import { useRef } from "react";
 interface MovieRowProps {
   title: string;
   movies: Movie[];
+  isTop10?: boolean;
 }
 
-export function MovieRow({ title, movies }: MovieRowProps) {
+export function MovieRow({ title, movies, isTop10 }: MovieRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const scroll = (direction: "left" | "right") => {
@@ -36,9 +37,9 @@ export function MovieRow({ title, movies }: MovieRowProps) {
           className="flex gap-2 overflow-x-auto scrollbar-hide px-4 scroll-smooth"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
-          {movies.map((movie) => (
-            <div key={movie.id} className="flex-shrink-0 w-48">
-              <MovieCard movie={movie} />
+          {movies.slice(0, isTop10 ? 10 : undefined).map((movie, index) => (
+            <div key={movie.id} className={`flex-shrink-0 ${isTop10 ? "w-64" : "w-48"}`}>
+              <MovieCard movie={movie} rank={isTop10 ? index + 1 : undefined} />
             </div>
           ))}
         </div>

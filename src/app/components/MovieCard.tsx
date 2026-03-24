@@ -5,17 +5,23 @@ import { motion } from "motion/react";
 
 interface MovieCardProps {
   movie: Movie;
+  rank?: number;
 }
 
-export function MovieCard({ movie }: MovieCardProps) {
+export function MovieCard({ movie, rank }: MovieCardProps) {
   return (
     <motion.div
       whileHover={{ scale: 1.05, zIndex: 10 }}
       transition={{ duration: 0.2 }}
       className="relative group"
     >
-      <Link to={`/movie/${movie.id}`}>
-        <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-gray-900">
+      <Link to={`/${movie.media_type || 'movie'}/${movie.id}`}>
+        <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-gray-900 group-hover:ring-2 ring-white/50 transition-all">
+          {rank && (
+            <div className="absolute top-0 left-0 z-20 bg-gradient-to-br from-red-600 to-red-900 text-white font-black text-3xl w-14 h-14 flex items-center justify-center rounded-br-2xl shadow-[4px_4px_12px_rgba(0,0,0,0.5)] border-b border-r border-red-500/30">
+              {rank}
+            </div>
+          )}
           <img
             src={movie.poster}
             alt={movie.title}

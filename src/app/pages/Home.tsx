@@ -89,14 +89,14 @@ export function Home() {
             </p>
             <div className="flex items-center gap-4">
               <Link
-                to={`/movie/${featured.id}`}
+                to={`/${featured.media_type || 'movie'}/${featured.id}`}
                 className="flex items-center gap-2 bg-white text-black px-8 py-3 rounded font-semibold text-lg hover:bg-gray-200 transition-colors"
               >
                 <Play className="w-6 h-6" fill="currentColor" />
                 Play
               </Link>
               <Link
-                to={`/movie/${featured.id}`}
+                to={`/${featured.media_type || 'movie'}/${featured.id}`}
                 className="flex items-center gap-2 bg-gray-500/50 text-white px-8 py-3 rounded font-semibold text-lg hover:bg-gray-500/70 transition-colors backdrop-blur-sm"
               >
                 <Info className="w-6 h-6" />
@@ -109,8 +109,8 @@ export function Home() {
 
       {/* Movie Rows */}
       <div className="relative -mt-32 pb-20">
-        <MovieRow title="Top 10 Movies Today" movies={topMovies} />
-        <MovieRow title="Top 10 Series Today" movies={topSeries} />
+        <MovieRow title="Top 10 Movies Today" movies={topMovies} isTop10={true} />
+        <MovieRow title="Top 10 Series Today" movies={topSeries} isTop10={true} />
         <MovieRow title="Most Watched Movies" movies={mostWatched} />
         <MovieRow title="New Releases" movies={newReleases} />
       </div>

@@ -8,6 +8,8 @@ interface VidkingPlayerProps {
   episode?: number;
   color?: string;
   autoPlay?: boolean;
+  onNextEpisode?: () => void;
+  hasNextEpisode?: boolean;
 }
 
 export function VidkingPlayer({
@@ -18,6 +20,8 @@ export function VidkingPlayer({
   episode,
   color = "e50914", // Netflix Red
   autoPlay = true,
+  onNextEpisode,
+  hasNextEpisode,
 }: VidkingPlayerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [showTitleOverlay, setShowTitleOverlay] = useState(true);
@@ -81,6 +85,18 @@ export function VidkingPlayer({
             {title}
           </h2>
         </div>
+      )}
+      
+      {type === "tv" && hasNextEpisode && onNextEpisode && (
+        <button
+          onClick={onNextEpisode}
+          className="absolute bottom-24 right-8 z-50 flex items-center gap-2 bg-black/60 hover:bg-black/80 backdrop-blur-md text-white px-5 py-2.5 rounded shadow-xl border border-white/20 transition-all group"
+        >
+          <span className="font-medium">Next Episode</span>
+          <svg className="w-5 h-5 transform group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
       )}
     </div>
   );

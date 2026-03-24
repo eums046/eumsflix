@@ -22,6 +22,7 @@ const mapTMDBMovie = async (tmdbMovie: any, fullDetails = false, forceType?: "mo
   let duration = "2h 00m"; // Default fallback
   let rating = "PG-13"; // Default fallback
   let genres: string[] = [];
+  let seasons: any[] = [];
   
   const type = forceType || tmdbMovie.media_type || (tmdbMovie.name ? "tv" : "movie");
 
@@ -62,6 +63,17 @@ const mapTMDBMovie = async (tmdbMovie: any, fullDetails = false, forceType?: "mo
         const usRating = contentRatings.results?.find((r: any) => r.iso_3166_1 === "US");
         if (usRating) rating = usRating.rating;
         else rating = "TV-14";
+        
+        if (details.seasons) {
+          seasons = details.seasons
+            .filter((s: any) => s.season_number > 0)
+            .map((s: any) => ({
+              id: s.id,
+              name: s.name,
+              season_number: s.season_number,
+              episode_count: s.episode_count
+            }));
+        }
       }
     } catch (e) {
       console.warn(`Failed to fetch full details for ${tmdbMovie.id}`, e);
@@ -85,6 +97,7 @@ const mapTMDBMovie = async (tmdbMovie: any, fullDetails = false, forceType?: "mo
     videoUrl: "",
     cast: cast,
     director: director,
+    seasons: seasons.length > 0 ? seasons : undefined,
   };
 };
 
@@ -142,6 +155,18 @@ export const getMovieDetails = async (id: number, type: "movie" | "tv" = "movie"
 export const getSimilarMovies = async (id: number, type: "movie" | "tv" = "movie"): Promise<Movie[]> => {
   const data = await fetchFromTMDB(`/${type}/${id}/similar`);
   return Promise.all(data.results.slice(0, 6).map((m: any) => mapTMDBMovie(m, false, type)));
+};
+
+export const getSeasonDetails = async (seriesId: number, seasonNumber: number) => {
+  const data = await fetchFromTMDB(`/tv/${seriesId}/season/${seasonNumber}`);
+  return data.episodes.map((ep: any) => ({
+    id: ep.id,
+    name: ep.name,
+    episode_number: ep.episode_number,
+    overview: ep.overview,
+    still_path: ep.still_path ? `${IMAGE_BASE_URL}${ep.still_path}` : null,
+    air_date: ep.air_date
+  }));
 };
 
 export const getGenres = async (): Promise<{id: number, name: string}[]> => {
