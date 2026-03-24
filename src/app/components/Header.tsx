@@ -78,8 +78,10 @@ export function Header() {
                 Browse
               </Link>
               <Link
-                to="/browse"
-                className="text-sm text-gray-400 transition-colors hover:text-white"
+                to="/mylist"
+                className={`text-sm transition-colors hover:text-white ${
+                  isActive("/mylist") ? "text-white font-medium" : "text-gray-400"
+                }`}
               >
                 My List
               </Link>

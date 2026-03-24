@@ -33,8 +33,13 @@ export const addToWatchHistory = async (
     ? `${item.media_type}_${item.id}_s${item.season}e${item.episode}`
     : `${item.media_type}_${item.id}`;
 
+  // Strip undefined fields — Firestore rejects them
+  const cleanItem = Object.fromEntries(
+    Object.entries(item).filter(([, v]) => v !== undefined)
+  );
+
   await setDoc(doc(getHistoryRef(userId), docId), {
-    ...item,
+    ...cleanItem,
     watchedAt: serverTimestamp(),
   });
 };

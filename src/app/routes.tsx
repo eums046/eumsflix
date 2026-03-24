@@ -6,6 +6,7 @@ import { Search } from "./pages/Search";
 import { Login } from "./pages/Login";
 import { SignUp } from "./pages/SignUp";
 import { History } from "./pages/History";
+import { MyList } from "./pages/MyList";
 import { Header } from "./components/Header";
 
 function Layout({ children }: { children: React.ReactNode }) {
@@ -55,6 +56,14 @@ export const router = createBrowserRouter([
     element: (
       <Layout>
         <History />
+      </Layout>
+    )
+  },
+  {
+    path: "/mylist",
+    element: (
+      <Layout>
+        <MyList />
       </Layout>
     )
   },

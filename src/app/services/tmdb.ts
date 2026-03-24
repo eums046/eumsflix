@@ -2,25 +2,39 @@ import { Movie } from "../types";
 
 const API_KEY = (import.meta as any).env.VITE_TMDB_API_KEY || "YOUR_TMDB_API_KEY";
 const BASE_URL = "https://api.themoviedb.org/3";
-const IMAGE_BASE_URL = "https://image.tmdb.org/t/p/original";
+const POSTER_URL = "https://image.tmdb.org/t/p/w500";
+const BACKDROP_URL = "https://image.tmdb.org/t/p/w1280";
+const STILL_URL = "https://image.tmdb.org/t/p/w300";
+
+// ── In-memory cache (5 min TTL) ──────────────────────────────────────
+const cache = new Map<string, { data: any; ts: number }>();
+const CACHE_TTL = 5 * 60 * 1000;
 
 const fetchFromTMDB = async (endpoint: string, params: Record<string, string> = {}) => {
   const url = new URL(`${BASE_URL}${endpoint}`);
   url.searchParams.append("api_key", API_KEY);
   Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
 
-  const response = await fetch(url.toString());
+  const cacheKey = url.toString();
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < CACHE_TTL) {
+    return cached.data;
+  }
+
+  const response = await fetch(cacheKey);
   if (!response.ok) {
     throw new Error(`TMDB API Error: ${response.status}`);
   }
-  return response.json();
+  const data = await response.json();
+  cache.set(cacheKey, { data, ts: Date.now() });
+  return data;
 };
 
 const mapTMDBMovie = async (tmdbMovie: any, fullDetails = false, forceType?: "movie"|"tv"): Promise<Movie> => {
   let cast: string[] = [];
   let director = "Unknown";
-  let duration = "2h 00m"; // Default fallback
-  let rating = "PG-13"; // Default fallback
+  let duration = "2h 00m";
+  let rating = "PG-13";
   let genres: string[] = [];
   let seasons: any[] = [];
   
@@ -30,9 +44,16 @@ const mapTMDBMovie = async (tmdbMovie: any, fullDetails = false, forceType?: "mo
     try {
       const detailsEndpoint = type === "tv" ? `/tv/${tmdbMovie.id}` : `/movie/${tmdbMovie.id}`;
       const creditsEndpoint = type === "tv" ? `/tv/${tmdbMovie.id}/credits` : `/movie/${tmdbMovie.id}/credits`;
-      
-      const details = await fetchFromTMDB(detailsEndpoint);
-      const credits = await fetchFromTMDB(creditsEndpoint);
+      const ratingsEndpoint = type === "movie"
+        ? `/movie/${tmdbMovie.id}/release_dates`
+        : `/tv/${tmdbMovie.id}/content_ratings`;
+
+      // Fetch all 3 in parallel instead of sequentially
+      const [details, credits, ratingsData] = await Promise.all([
+        fetchFromTMDB(detailsEndpoint),
+        fetchFromTMDB(creditsEndpoint),
+        fetchFromTMDB(ratingsEndpoint)
+      ]);
 
       if (type === "movie" && details.runtime) {
         duration = `${Math.floor(details.runtime / 60)}h ${details.runtime % 60}m`;
@@ -52,15 +73,13 @@ const mapTMDBMovie = async (tmdbMovie: any, fullDetails = false, forceType?: "mo
       }
       
       if (type === "movie") {
-        const releaseDates = await fetchFromTMDB(`/movie/${tmdbMovie.id}/release_dates`);
-        const usRelease = releaseDates.results?.find((r: any) => r.iso_3166_1 === "US");
+        const usRelease = ratingsData.results?.find((r: any) => r.iso_3166_1 === "US");
         if (usRelease && usRelease.release_dates.length > 0) {
           const cert = usRelease.release_dates[0].certification;
           if (cert) rating = cert;
         }
       } else {
-        const contentRatings = await fetchFromTMDB(`/tv/${tmdbMovie.id}/content_ratings`);
-        const usRating = contentRatings.results?.find((r: any) => r.iso_3166_1 === "US");
+        const usRating = ratingsData.results?.find((r: any) => r.iso_3166_1 === "US");
         if (usRating) rating = usRating.rating;
         else rating = "TV-14";
         
@@ -92,8 +111,8 @@ const mapTMDBMovie = async (tmdbMovie: any, fullDetails = false, forceType?: "mo
     rating: rating,
     duration: duration,
     genre: genres,
-    poster: tmdbMovie.poster_path ? `${IMAGE_BASE_URL}${tmdbMovie.poster_path}` : "https://via.placeholder.com/500x750",
-    backdrop: tmdbMovie.backdrop_path ? `${IMAGE_BASE_URL}${tmdbMovie.backdrop_path}` : "https://via.placeholder.com/1200x675",
+    poster: tmdbMovie.poster_path ? `${POSTER_URL}${tmdbMovie.poster_path}` : "https://via.placeholder.com/500x750",
+    backdrop: tmdbMovie.backdrop_path ? `${BACKDROP_URL}${tmdbMovie.backdrop_path}` : "https://via.placeholder.com/1200x675",
     videoUrl: "",
     cast: cast,
     director: director,
@@ -108,6 +127,7 @@ export const searchMoviesAndSeries = async (query: string): Promise<Movie[]> => 
   return Promise.all(mediaItems.slice(0, 18).map((m: any) => mapTMDBMovie(m, false)));
 };
 
+// ── Home page rows (share the trending call via cache) ───────────────
 export const getTop10MoviesToday = async (): Promise<Movie[]> => {
   const data = await fetchFromTMDB("/trending/movie/day");
   return Promise.all(data.results.slice(0, 10).map((m: any) => mapTMDBMovie(m, false, "movie")));
@@ -118,11 +138,7 @@ export const getTop10SeriesToday = async (): Promise<Movie[]> => {
   return Promise.all(data.results.slice(0, 10).map((m: any) => mapTMDBMovie(m, false, "tv")));
 };
 
-// Existing Endpoints
-export const getTrendingMovies = async (): Promise<Movie[]> => {
-  const data = await fetchFromTMDB("/trending/movie/day");
-  return Promise.all(data.results.slice(0, 10).map((m: any) => mapTMDBMovie(m, false, "movie")));
-};
+export const getTrendingMovies = getTop10MoviesToday; // same endpoint, now uses cache
 
 export const getPopularMovies = async (): Promise<Movie[]> => {
   const data = await fetchFromTMDB("/movie/popular");
@@ -164,7 +180,7 @@ export const getSeasonDetails = async (seriesId: number, seasonNumber: number) =
     name: ep.name,
     episode_number: ep.episode_number,
     overview: ep.overview,
-    still_path: ep.still_path ? `${IMAGE_BASE_URL}${ep.still_path}` : null,
+    still_path: ep.still_path ? `${STILL_URL}${ep.still_path}` : null,
     air_date: ep.air_date
   }));
 };

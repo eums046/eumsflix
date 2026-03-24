@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router";
-import { Play, Plus, ThumbsUp, ChevronLeft } from "lucide-react";
+import { Play, Plus, ThumbsUp, ChevronLeft, Check } from "lucide-react";
 import { VidkingPlayer } from "../components/VidkingPlayer";
 import { MovieCard } from "../components/MovieCard";
 import { getMovieDetails, getSimilarMovies, getSeasonDetails, getMovieReviews } from "../services/tmdb";
@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { Movie, Episode, Review } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { addToWatchHistory } from "../services/watchHistory";
+import { addToWatchlist, removeFromWatchlist, isInWatchlist } from "../services/watchlist";
 
 export function MovieDetail() {
   const { id, type } = useParams();
@@ -25,6 +26,8 @@ export function MovieDetail() {
   
   const [playingSeason, setPlayingSeason] = useState<number | null>(null);
   const [playingEpisode, setPlayingEpisode] = useState<number | null>(null);
+  const [inList, setInList] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   const computeHasNextEpisode = (s: number, e: number) => {
     if (!movie?.seasons) return false;
@@ -79,6 +82,12 @@ export function MovieDetail() {
     fetchMovie();
     return () => { mounted = false; };
   }, [id, mediaType]);
+
+  useEffect(() => {
+    if (user && id) {
+      isInWatchlist(user.uid, mediaType, Number(id)).then(setInList).catch(console.error);
+    }
+  }, [user, id, mediaType]);
 
   useEffect(() => {
     if (movie) {
@@ -214,8 +223,34 @@ export function MovieDetail() {
                     <Play className="w-6 h-6" fill="currentColor" />
                     Play
                   </button>
-                  <button className="flex items-center justify-center w-12 h-12 rounded-full border-2 border-gray-400 text-gray-400 hover:border-white hover:text-white transition-colors">
-                    <Plus className="w-6 h-6" />
+                  <button
+                    onClick={async () => {
+                      if (!user) return;
+                      if (inList) {
+                        await removeFromWatchlist(user.uid, mediaType, movie.tmdbId);
+                        setInList(false);
+                        setToast(`"${movie.title}" removed from My List`);
+                      } else {
+                        await addToWatchlist(user.uid, {
+                          id: movie.tmdbId,
+                          title: movie.title,
+                          poster: movie.poster,
+                          backdrop: movie.backdrop,
+                          media_type: mediaType,
+                        });
+                        setInList(true);
+                        setToast(`"${movie.title}" added to My List`);
+                      }
+                      setTimeout(() => setToast(null), 3000);
+                    }}
+                    className={`flex items-center justify-center w-12 h-12 rounded-full border-2 transition-colors ${
+                      inList
+                        ? "border-green-500 text-green-500 hover:border-green-400 hover:text-green-400"
+                        : "border-gray-400 text-gray-400 hover:border-white hover:text-white"
+                    }`}
+                    title={inList ? "Remove from My List" : "Add to My List"}
+                  >
+                    {inList ? <Check className="w-6 h-6" /> : <Plus className="w-6 h-6" />}
                   </button>
                   <button className="flex items-center justify-center w-12 h-12 rounded-full border-2 border-gray-400 text-gray-400 hover:border-white hover:text-white transition-colors">
                     <ThumbsUp className="w-6 h-6" />
@@ -370,6 +405,16 @@ export function MovieDetail() {
           </div>
         )}
       </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] animate-[fadeInUp_0.3s_ease-out]">
+          <div className="bg-white text-black px-6 py-3 rounded-lg shadow-2xl font-medium text-sm flex items-center gap-2">
+            <Check className="w-5 h-5 text-green-600" />
+            {toast}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

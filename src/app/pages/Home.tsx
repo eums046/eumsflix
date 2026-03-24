@@ -27,12 +27,13 @@ export function Home() {
     let mounted = true;
     const fetchAll = async () => {
       try {
-        const [f, n, m, tom, tos] = await Promise.all([
+        const [f, n, m, tom, tos, cw] = await Promise.all([
           getFeaturedMovie(),
           getNewReleases(),
           getMostWatchedMovies(),
           getTop10MoviesToday(),
-          getTop10SeriesToday()
+          getTop10SeriesToday(),
+          user ? getContinueWatching(user.uid) : Promise.resolve([])
         ]);
         if (mounted) {
           setFeatured(f);
@@ -40,6 +41,7 @@ export function Home() {
           setMostWatched(m);
           setTopMovies(tom);
           setTopSeries(tos);
+          setContinueWatching(cw);
         }
       } catch (e) {
         console.error("Failed to fetch home movies:", e);
@@ -49,12 +51,6 @@ export function Home() {
     };
     fetchAll();
     return () => { mounted = false; };
-  }, []);
-
-  useEffect(() => {
-    if (user) {
-      getContinueWatching(user.uid).then(setContinueWatching).catch(console.error);
-    }
   }, [user]);
 
   if (loading || !featured) {
