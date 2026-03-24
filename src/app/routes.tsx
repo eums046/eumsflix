@@ -7,6 +7,7 @@ import { Login } from "./pages/Login";
 import { SignUp } from "./pages/SignUp";
 import { History } from "./pages/History";
 import { MyList } from "./pages/MyList";
+import { PersonDetail } from "./pages/PersonDetail";
 import { Header } from "./components/Header";
 
 function Layout({ children }: { children: React.ReactNode }) {
@@ -64,6 +65,14 @@ export const router = createBrowserRouter([
     element: (
       <Layout>
         <MyList />
+      </Layout>
+    )
+  },
+  {
+    path: "/person/:id",
+    element: (
+      <Layout>
+        <PersonDetail />
       </Layout>
     )
   },

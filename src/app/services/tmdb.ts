@@ -127,6 +127,76 @@ export const searchMoviesAndSeries = async (query: string): Promise<Movie[]> => 
   return Promise.all(mediaItems.slice(0, 18).map((m: any) => mapTMDBMovie(m, false)));
 };
 
+export interface PersonResult {
+  id: number;
+  name: string;
+  profile_path: string | null;
+  known_for_department: string;
+  known_for: Movie[];
+}
+
+export const searchPeople = async (query: string): Promise<PersonResult[]> => {
+  if (!query) return [];
+  const data = await fetchFromTMDB("/search/multi", { query, include_adult: "false" });
+  const people = data.results.filter((item: any) => item.media_type === "person");
+  const mapped = await Promise.all(
+    people.slice(0, 6).map(async (p: any) => {
+      const knownFor = await Promise.all(
+        (p.known_for || [])
+          .filter((k: any) => k.media_type === "movie" || k.media_type === "tv")
+          .slice(0, 4)
+          .map((k: any) => mapTMDBMovie(k, false))
+      );
+      return {
+        id: p.id,
+        name: p.name,
+        profile_path: p.profile_path ? `${POSTER_URL}${p.profile_path}` : null,
+        known_for_department: p.known_for_department || "Acting",
+        known_for: knownFor,
+      };
+    })
+  );
+  return mapped;
+};
+
+export interface PersonDetails {
+  id: number;
+  name: string;
+  biography: string;
+  profile_path: string | null;
+  known_for_department: string;
+  birthday: string | null;
+  place_of_birth: string | null;
+}
+
+export const getPersonDetails = async (id: number): Promise<PersonDetails> => {
+  const data = await fetchFromTMDB(`/person/${id}`);
+  return {
+    id: data.id,
+    name: data.name,
+    biography: data.biography || "",
+    profile_path: data.profile_path ? `${POSTER_URL}${data.profile_path}` : null,
+    known_for_department: data.known_for_department || "Acting",
+    birthday: data.birthday,
+    place_of_birth: data.place_of_birth,
+  };
+};
+
+export const getPersonCredits = async (id: number): Promise<Movie[]> => {
+  const data = await fetchFromTMDB(`/person/${id}/combined_credits`);
+  const allCredits = [...(data.cast || []), ...(data.crew || [])];
+  // Deduplicate by id and sort by popularity
+  const seen = new Set<number>();
+  const unique = allCredits.filter((c: any) => {
+    if (seen.has(c.id)) return false;
+    if (c.media_type !== "movie" && c.media_type !== "tv") return false;
+    seen.add(c.id);
+    return true;
+  });
+  unique.sort((a: any, b: any) => (b.popularity || 0) - (a.popularity || 0));
+  return Promise.all(unique.slice(0, 24).map((m: any) => mapTMDBMovie(m, false)));
+};
+
 // ── Home page rows (share the trending call via cache) ───────────────
 export const getTop10MoviesToday = async (): Promise<Movie[]> => {
   const data = await fetchFromTMDB("/trending/movie/day");
