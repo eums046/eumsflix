@@ -7,22 +7,45 @@ import {
   Maximize,
   SkipBack,
   SkipForward,
-  Settings
+  Settings,
+  Check
 } from "lucide-react";
+
+export interface SubtitleTrack {
+  /** Human-readable name shown in the menu, e.g. "English" */
+  label: string;
+  /** BCP-47 language code, e.g. "en" */
+  srcLang: string;
+  /** URL to a WebVTT (.vtt) file */
+  src: string;
+  /** Selected by default when the player loads */
+  default?: boolean;
+}
 
 interface VideoPlayerProps {
   videoUrl: string;
   poster: string;
   title: string;
+  subtitles?: SubtitleTrack[];
 }
 
-export function VideoPlayer({ videoUrl, poster, title }: VideoPlayerProps) {
+// Sentinel for "Subtitles Off" (no track showing)
+const SUBTITLE_OFF = -1;
+
+export function VideoPlayer({ videoUrl, poster, title, subtitles = [] }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [showControls, setShowControls] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  // Index into `subtitles`, or SUBTITLE_OFF for no captions.
+  const [activeSubtitle, setActiveSubtitle] = useState<number>(() => {
+    const idx = subtitles.findIndex((s) => s.default);
+    return idx === -1 ? SUBTITLE_OFF : idx;
+  });
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -40,6 +63,29 @@ export function VideoPlayer({ videoUrl, poster, title }: VideoPlayerProps) {
       video.removeEventListener("loadedmetadata", updateDuration);
     };
   }, []);
+
+  // Drive the underlying <video> text tracks from `activeSubtitle`. The i-th
+  // TextTrack maps to the i-th <track> element rendered below (document order).
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const tracks = video.textTracks;
+    for (let i = 0; i < tracks.length; i++) {
+      tracks[i].mode = i === activeSubtitle ? "showing" : "disabled";
+    }
+  }, [activeSubtitle, subtitles]);
+
+  // Close the settings menu when clicking anywhere outside it.
+  useEffect(() => {
+    if (!showSettings) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setShowSettings(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showSettings]);
 
   const togglePlay = () => {
     if (videoRef.current) {
@@ -83,11 +129,16 @@ export function VideoPlayer({ videoUrl, poster, title }: VideoPlayerProps) {
     }
   };
 
+  const selectSubtitle = (index: number) => {
+    setActiveSubtitle(index);
+    setShowSettings(false);
+  };
+
   const formatTime = (time: number) => {
     const hours = Math.floor(time / 3600);
     const minutes = Math.floor((time % 3600) / 60);
     const seconds = Math.floor(time % 60);
-    
+
     if (hours > 0) {
       return `${hours}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
     }
@@ -100,7 +151,8 @@ export function VideoPlayer({ videoUrl, poster, title }: VideoPlayerProps) {
       clearTimeout(controlsTimeoutRef.current);
     }
     controlsTimeoutRef.current = setTimeout(() => {
-      if (isPlaying) {
+      // Keep controls visible while the settings menu is open.
+      if (isPlaying && !showSettings) {
         setShowControls(false);
       }
     }, 3000);
@@ -110,7 +162,7 @@ export function VideoPlayer({ videoUrl, poster, title }: VideoPlayerProps) {
     <div
       className="relative bg-black aspect-video group"
       onMouseMove={handleMouseMove}
-      onMouseLeave={() => isPlaying && setShowControls(false)}
+      onMouseLeave={() => isPlaying && !showSettings && setShowControls(false)}
     >
       <video
         ref={videoRef}
@@ -118,11 +170,21 @@ export function VideoPlayer({ videoUrl, poster, title }: VideoPlayerProps) {
         poster={poster}
         className="w-full h-full"
         onClick={togglePlay}
-      />
+      >
+        {subtitles.map((track) => (
+          <track
+            key={`${track.srcLang}-${track.src}`}
+            kind="subtitles"
+            label={track.label}
+            srcLang={track.srcLang}
+            src={track.src}
+          />
+        ))}
+      </video>
 
       <div
         className={`absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/40 transition-opacity duration-300 ${
-          showControls ? "opacity-100" : "opacity-0"
+          showControls ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
       >
         {/* Top bar */}
@@ -200,9 +262,52 @@ export function VideoPlayer({ videoUrl, poster, title }: VideoPlayerProps) {
               </button>
             </div>
             <div className="flex items-center gap-4">
-              <button className="text-white hover:text-gray-300 transition-colors">
-                <Settings className="w-6 h-6" />
-              </button>
+              {/* Subtitles / settings */}
+              <div className="relative" ref={settingsRef}>
+                <button
+                  onClick={() => setShowSettings((v) => !v)}
+                  className={`transition-colors ${
+                    showSettings ? "text-white" : "text-white hover:text-gray-300"
+                  }`}
+                  aria-haspopup="menu"
+                  aria-expanded={showSettings}
+                  aria-label="Subtitle settings"
+                  title="Subtitles"
+                >
+                  <Settings className="w-6 h-6" />
+                </button>
+
+                {showSettings && (
+                  <div
+                    role="menu"
+                    className="absolute bottom-full right-0 mb-3 w-56 rounded-lg bg-black/90 backdrop-blur-md border border-white/10 shadow-2xl overflow-hidden"
+                  >
+                    <div className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400 border-b border-white/10">
+                      Subtitles / CC
+                    </div>
+                    <div className="py-1 max-h-64 overflow-y-auto">
+                      <SubtitleOption
+                        label="Off"
+                        selected={activeSubtitle === SUBTITLE_OFF}
+                        onSelect={() => selectSubtitle(SUBTITLE_OFF)}
+                      />
+                      {subtitles.map((track, index) => (
+                        <SubtitleOption
+                          key={`${track.srcLang}-${track.src}`}
+                          label={track.label}
+                          selected={activeSubtitle === index}
+                          onSelect={() => selectSubtitle(index)}
+                        />
+                      ))}
+                    </div>
+                    {subtitles.length === 0 && (
+                      <div className="px-4 py-2 text-xs text-gray-500 border-t border-white/10">
+                        No subtitle tracks available
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               <button
                 onClick={toggleFullscreen}
                 className="text-white hover:text-gray-300 transition-colors"
@@ -214,5 +319,31 @@ export function VideoPlayer({ videoUrl, poster, title }: VideoPlayerProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+function SubtitleOption({
+  label,
+  selected,
+  onSelect
+}: {
+  label: string;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      role="menuitemradio"
+      aria-checked={selected}
+      onClick={onSelect}
+      className={`flex items-center gap-3 w-full px-4 py-2 text-left text-sm transition-colors ${
+        selected ? "text-white bg-white/5" : "text-gray-300 hover:bg-white/10 hover:text-white"
+      }`}
+    >
+      <Check
+        className={`w-4 h-4 flex-shrink-0 ${selected ? "opacity-100 text-red-500" : "opacity-0"}`}
+      />
+      <span className="truncate">{label}</span>
+    </button>
   );
 }
